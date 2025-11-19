@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 import { formatUnits, stringToHex } from "viem";
 import { useWallet } from "./hooks/useWallet";
-import { publicClient } from "./lib/client";
+import { publicClient, chain } from "./lib/client";
 import { contractAddresses } from "./config/contracts";
 import {
   kycRegistryAbi,
@@ -64,7 +64,8 @@ export default function App() {
 
   const ensureWallet = async () => {
     if (!wallet.address) throw new Error("Connect a wallet first");
-    return wallet.getSigner();
+    const signer = await wallet.getSigner();
+    return { signer, account: wallet.address as Address };
   };
 
   const refreshMetrics = useCallback(async () => {
@@ -126,9 +127,11 @@ export default function App() {
   }, [wallet.address, refreshMetrics]);
 
   const handleOnboard = async ({ target, type }: { target: string; type: ActorType }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const kycAddress = requireAddress(contractAddresses.kycRegistry, "KYCRegistry");
     const tx1 = await signer.writeContract({
+      account,
+      chain,
       address: kycAddress,
       abi: kycRegistryAbi,
       functionName: "setKYCStatus",
@@ -138,6 +141,8 @@ export default function App() {
 
     const [borrower, bank, coop, oracleBot, grantor] = roleMatrix[type];
     const tx2 = await signer.writeContract({
+      account,
+      chain,
       address: kycAddress,
       abi: kycRegistryAbi,
       functionName: "setUserRoles",
@@ -162,9 +167,11 @@ export default function App() {
     unitDecimals: number;
     mintPaused: boolean;
   }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const speciesAddr = requireAddress(contractAddresses.speciesToken, "SpeciesToken");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: speciesAddr,
       abi: speciesTokenAbi,
       functionName: "setSpeciesInfo",
@@ -185,9 +192,11 @@ export default function App() {
     speciesId: number;
     metadataHash: string;
   }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const passportAddr = requireAddress(contractAddresses.animalPassport, "AnimalPassportRegistry");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: passportAddr,
       abi: animalPassportAbi,
       functionName: "mintPassport",
@@ -204,9 +213,11 @@ export default function App() {
   };
 
   const handleLoanRequest = async ({ amount }: { amount: string }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const lendingAddr = requireAddress(contractAddresses.speciesLending, "SpeciesLending");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: lendingAddr,
       abi: speciesLendingAbi,
       functionName: "borrow",
@@ -228,13 +239,15 @@ export default function App() {
     payoutDate: string;
     grantRef: string;
   }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const voucherAddr = requireAddress(contractAddresses.grantVoucher, "GrantVoucherRegistry");
     const payoutTs = Math.floor(new Date(payload.payoutDate).getTime() / 1000);
     const ref = payload.grantRef.startsWith("0x")
       ? (payload.grantRef as Hex)
       : (stringToHex(payload.grantRef, { size: 32 }) as Hex);
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: voucherAddr,
       abi: grantVoucherAbi,
       functionName: "mintVoucher",
@@ -263,9 +276,11 @@ export default function App() {
     goodStanding: boolean;
     rating: number;
   }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const coopAddr = requireAddress(contractAddresses.cooperativeAttestor, "CooperativeAttestor");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: coopAddr,
       abi: cooperativeAttestorAbi,
       functionName: "setMembership",
@@ -292,9 +307,11 @@ export default function App() {
     price: string;
     score: number;
   }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const oracleAddr = requireAddress(contractAddresses.speciesOracle, "SpeciesOracle");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: oracleAddr,
       abi: speciesOracleAbi,
       functionName: "postPriceWithScore",
@@ -311,9 +328,11 @@ export default function App() {
   };
 
   const handleGrantDeposit = async ({ amount }: { amount: string }) => {
-    const signer = await ensureWallet();
+    const { signer, account } = await ensureWallet();
     const guaranteeAddr = requireAddress(contractAddresses.guaranteePool, "GuaranteePool");
     const tx = await signer.writeContract({
+      account,
+      chain,
       address: guaranteeAddr,
       abi: guaranteePoolAbi,
       functionName: "depositGrant",

@@ -167,5 +167,16 @@ export const speciesOracleAbi = [
             { name: "score", type: "uint256" }
         ],
         outputs: []
+    },
+    {
+        type: "function",
+        name: "currentScore",
+        stateMutability: "view",
+        inputs: [{ name: "id", type: "uint256" }],
+        outputs: [
+            { name: "score", type: "uint256" },
+            { name: "timestamp", type: "uint64" },
+            { name: "valid", type: "bool" }
+        ]
     }
 ];

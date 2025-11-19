@@ -1,48 +1,91 @@
-import { useCallback, useMemo, useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useCallback, useEffect, useState } from "react";
 import { getWalletClient } from "../lib/client";
 import { chainConfig } from "../config/contracts";
+const chainHex = `0x${chainConfig.id.toString(16)}`;
+async function ensureChain(provider) {
+    if (!provider)
+        throw new Error("Wallet not found");
+    try {
+        await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: chainHex }]
+        });
+    }
+    catch (err) {
+        if (err?.code === 4902) {
+            await provider.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                    {
+                        chainId: chainHex,
+                        chainName: chainConfig.name,
+                        rpcUrls: [chainConfig.rpcUrl],
+                        nativeCurrency: {
+                            name: "Ether",
+                            symbol: "ETH",
+                            decimals: 18
+                        }
+                    }
+                ]
+            });
+        }
+        else {
+            throw err;
+        }
+    }
+}
 export function useWallet() {
-    const { ready, authenticated, login, logout } = usePrivy();
-    const { wallets } = useWallets();
+    const [state, setState] = useState({});
     const [connecting, setConnecting] = useState(false);
-    const connectedWallet = useMemo(() => {
-        if (!wallets?.length)
-            return undefined;
-        return (wallets.find((wallet) => wallet.address && wallet.chainId === chainConfig.id) ||
-            wallets.find((wallet) => wallet.address) ||
-            wallets[0]);
-    }, [wallets]);
     const connect = useCallback(async () => {
-        if (connecting || !ready)
+        if (connecting)
             return;
-        if (authenticated && connectedWallet)
-            return;
+        if (!window.ethereum)
+            throw new Error("Wallet not found");
         setConnecting(true);
         try {
-            await login();
+            await ensureChain(window.ethereum);
+            const [account] = (await window.ethereum.request({
+                method: "eth_requestAccounts"
+            }));
+            const chainIdHex = (await window.ethereum.request({
+                method: "eth_chainId"
+            }));
+            setState({ address: account, chainId: Number(chainIdHex) });
         }
         finally {
             setConnecting(false);
         }
-    }, [authenticated, connectedWallet, connecting, login, ready]);
-    const disconnect = useCallback(async () => {
-        if (!authenticated)
+    }, [connecting]);
+    const disconnect = useCallback(() => setState({}), []);
+    useEffect(() => {
+        if (!window.ethereum)
             return;
-        await logout();
-    }, [authenticated, logout]);
+        const handleAccountsChanged = (accounts) => {
+            setState((prev) => ({ ...prev, address: accounts[0] }));
+        };
+        const handleChainChanged = (hex) => {
+            setState((prev) => ({ ...prev, chainId: Number(hex) }));
+        };
+        window.ethereum.on?.("accountsChanged", handleAccountsChanged);
+        window.ethereum.on?.("chainChanged", handleChainChanged);
+        return () => {
+            window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+            window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
+        };
+    }, []);
     const getSigner = useCallback(async () => {
-        if (!connectedWallet?.address)
+        if (!state.address)
             throw new Error("Connect wallet first");
-        const provider = await connectedWallet.getEthereumProvider();
-        return getWalletClient(connectedWallet.address, provider);
-    }, [connectedWallet]);
-    const address = connectedWallet?.address;
-    const chainId = typeof connectedWallet?.chainId === "number" ? connectedWallet.chainId : undefined;
+        await ensureChain(window.ethereum);
+        return getWalletClient(state.address);
+    }, [state.address]);
+    const address = state.address;
+    const chainId = state.chainId;
     return {
         address,
         chainId,
-        connecting: connecting || !ready,
+        connecting,
         connect,
         disconnect,
         getSigner
