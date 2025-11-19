@@ -30,4 +30,16 @@ contract SpeciesOracleTest is Test {
         assertTrue(valid);
         assertEq(price, 100e8); // median of [99,100,101]
     }
+
+    function testPostPriceWithScore() public {
+        vm.startPrank(reporter);
+        oracle.postPriceWithScore(1, 100e8, 7_500); // 75.00
+        oracle.postPriceWithScore(1, 99e8, 7_200);
+        oracle.postPriceWithScore(1, 101e8, 7_800);
+        vm.stopPrank();
+
+        (uint256 score, , bool validScore) = oracle.currentScore(1);
+        assertTrue(validScore);
+        assertEq(score, 7_500); // median of [7200,7500,7800]
+    }
 }

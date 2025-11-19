@@ -17,8 +17,11 @@ contract SpeciesOracle is AccessControl {
     uint256 public constant SPECIES_GOAT = 3;
     uint256 public constant SPECIES_CHICKEN = 4;
 
+    /// @notice Price and sentiment observation posted by a reporter.
+    /// @dev `score` can encode any AI-generated confidence metric (scaled however you prefer).
     struct Observation {
         uint256 price; // 8 decimals, USD * 1e8
+        uint256 score; // e.g. 0-100 scaled by 1e2
         uint64 timestamp; // unix seconds
         address reporter;
     }
@@ -36,7 +39,7 @@ contract SpeciesOracle is AccessControl {
     mapping(uint256 => Config) public cfg;
     mapping(uint256 => uint256) public lastAcceptedPrice;
 
-    event Report(uint256 indexed id, uint256 price, address reporter);
+    event Report(uint256 indexed id, uint256 price, uint256 score, address reporter);
     event Paused(uint256 indexed id, bool paused);
     event Accepted(uint256 indexed id, uint256 price);
     event ConfigUpdated(
@@ -70,11 +73,27 @@ contract SpeciesOracle is AccessControl {
         uint256 id,
         uint256 price
     ) external onlyRole(REPORTER_ROLE) {
+        _postObservation(id, price, 0);
+    }
+
+    function postPriceWithScore(
+        uint256 id,
+        uint256 price,
+        uint256 score
+    ) external onlyRole(REPORTER_ROLE) {
+        _postObservation(id, price, score);
+    }
+
+    function _postObservation(
+        uint256 id,
+        uint256 price,
+        uint256 score
+    ) internal {
         require(!cfg[id].paused, "PAUSED");
         uint8 i = idx[id];
-        obs[id][i] = Observation(price, uint64(block.timestamp), msg.sender);
+        obs[id][i] = Observation(price, score, uint64(block.timestamp), msg.sender);
         idx[id] = (i + 1) % RING;
-        emit Report(id, price, msg.sender);
+        emit Report(id, price, score, msg.sender);
     }
 
     function currentPrice(
@@ -110,6 +129,32 @@ contract SpeciesOracle is AccessControl {
         }
 
         return (med, newest, true);
+    }
+
+    /// @notice Returns the current AI sentiment score (median of last reports).
+    /// @dev Requires at least 3 non-zero score observations.
+    function currentScore(
+        uint256 id
+    ) external view returns (uint256 score, uint64 ts, bool valid) {
+        uint256[] memory scores = new uint256[](RING);
+        uint64 newest = 0;
+        uint256 count;
+
+        for (uint8 i = 0; i < RING; i++) {
+            Observation memory o = obs[id][i];
+            if (o.timestamp == 0 || o.score == 0) continue;
+            scores[count++] = o.score;
+            if (o.timestamp > newest) newest = o.timestamp;
+        }
+
+        if (count < 3) return (0, newest, false);
+
+        Config memory c = cfg[id];
+        if (c.heartbeat == 0) return (0, newest, false);
+        if (block.timestamp - newest > c.heartbeat) return (0, newest, false);
+
+        _selectK(scores, count, (count - 1) / 2);
+        return (scores[(count - 1) / 2], newest, true);
     }
 
     function accept(uint256 id) external onlyRole(GUARDIAN_ROLE) {

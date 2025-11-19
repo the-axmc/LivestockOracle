@@ -20,6 +20,41 @@ GuaranteePool – where grant money actually eats losses.
 
 ---
 
+## TypeScript dashboard (frontend)
+
+The `frontend/` directory hosts a lightweight Vite + React dashboard that interacts with the on-chain
+registry + voucher stack. Features:
+
+- Wallet connect panel (Metamask/EIP-1193) with transaction status banner.
+- Admin onboarding flow that flips KYC + borrower/coop/bank flags inside `KYCRegistry`.
+- Animal passport minting form for registrars.
+- Cooperative attestation form that writes to `CooperativeAttestor`.
+- Grant voucher minter + GuaranteePool grant deposit helper for grantors.
+- **Three dedicated auth logs** that categorize actions by actor type:
+  - Livestock owners (passport mints, borrower onboarding)
+  - Cooperatives (attestations, membership status updates)
+  - Banks / LPs (grant vouchers, guarantee deposits)
+
+### Running locally
+
+1. `cd frontend`
+2. Copy `.env.example` → `.env` and paste the addresses emitted by your deployment script:
+   ```
+   VITE_RPC_URL=http://127.0.0.1:8545
+   VITE_KYC_REGISTRY=0x...
+   VITE_ANIMAL_PASSPORT=0x...
+   VITE_COOP_ATTESTOR=0x...
+   VITE_GRANT_VOUCHER=0x...
+   VITE_GUARANTEE_POOL=0x...
+   ```
+3. Install deps and start Vite:
+   ```
+   npm install
+   npm run dev
+   ```
+4. Open the printed URL (defaults to http://localhost:5173). Connect your admin / coop / grantor wallet
+   and interact with the on-chain contracts. Each action immediately streams into the respective auth log.
+
 1. KYCRegistry
 
 File: KYCRegistry.sol

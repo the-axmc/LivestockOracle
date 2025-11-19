@@ -58,6 +58,9 @@ contract DeployLivestockOracle is Script {
         KYCRegistry kyc = new KYCRegistry(admin);
         SpeciesToken speciesToken = new SpeciesToken(baseURI, admin);
         SpeciesOracle speciesOracle = new SpeciesOracle(admin);
+        if (broadcastFrom == admin) {
+            speciesOracle.grantReporter(admin);
+        }
 
         AnimalPassportRegistry passports = new AnimalPassportRegistry(
             kyc,
