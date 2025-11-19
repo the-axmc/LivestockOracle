@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
-import { stringToHex } from "viem";
+import { formatUnits, stringToHex } from "viem";
 import { useWallet } from "./hooks/useWallet";
 import { publicClient } from "./lib/client";
 import { contractAddresses } from "./config/contracts";
@@ -44,6 +44,16 @@ export default function App() {
   const { logs, pushLog, stats } = useAuthLogs();
   const [status, setStatus] = useState<string>("");
   const [lastVoucher, setLastVoucher] = useState<number>();
+  const [creditSpeciesId, setCreditSpeciesId] = useState(1);
+  const [metrics, setMetrics] = useState<{
+    creditScore?: number;
+    creditTimestamp?: number;
+    creditValid?: boolean;
+    healthFactor?: number;
+    borrowable?: string;
+  }>({});
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsError, setMetricsError] = useState<string>();
 
   const waitForTx = async (hash: Hex) => {
     setStatus("Waiting for confirmation...");
@@ -56,6 +66,64 @@ export default function App() {
     if (!wallet.address) throw new Error("Connect a wallet first");
     return wallet.getSigner();
   };
+
+  const refreshMetrics = useCallback(async () => {
+    if (!wallet.address) {
+      setMetrics({});
+      return;
+    }
+    setMetricsLoading(true);
+    setMetricsError(undefined);
+    try {
+      const lendingAddr = requireAddress(contractAddresses.speciesLending, "SpeciesLending");
+      const oracleAddr = requireAddress(contractAddresses.speciesOracle, "SpeciesOracle");
+      const [healthRaw, borrowableRaw, scoreResult] = (await Promise.all([
+        publicClient.readContract({
+          address: lendingAddr,
+          abi: speciesLendingAbi,
+          functionName: "health",
+          args: [wallet.address as Address]
+        }),
+        publicClient.readContract({
+          address: lendingAddr,
+          abi: speciesLendingAbi,
+          functionName: "borrowable",
+          args: [wallet.address as Address]
+        }),
+        publicClient.readContract({
+          address: oracleAddr,
+          abi: speciesOracleAbi,
+          functionName: "currentScore",
+          args: [BigInt(creditSpeciesId)]
+        })
+      ])) as [
+        bigint,
+        bigint,
+        readonly [bigint, bigint, boolean]
+      ];
+      const [scoreValue, scoreTimestamp, scoreValid] = scoreResult;
+      setMetrics({
+        creditScore: Number(scoreValue),
+        creditTimestamp: Number(scoreTimestamp),
+        creditValid: Boolean(scoreValid),
+        healthFactor: Number(formatUnits(healthRaw, 18)),
+        borrowable: formatUnits(borrowableRaw, 6)
+      });
+    } catch (err) {
+      console.error(err);
+      setMetricsError(err instanceof Error ? err.message : "Failed to load metrics");
+    } finally {
+      setMetricsLoading(false);
+    }
+  }, [wallet.address, creditSpeciesId]);
+
+  useEffect(() => {
+    if (wallet.address) {
+      refreshMetrics();
+    } else {
+      setMetrics({});
+    }
+  }, [wallet.address, refreshMetrics]);
 
   const handleOnboard = async ({ target, type }: { target: string; type: ActorType }) => {
     const signer = await ensureWallet();
@@ -283,6 +351,17 @@ export default function App() {
     };
   }, []);
 
+  const creditLastUpdated = metrics.creditTimestamp
+    ? new Date(metrics.creditTimestamp * 1000).toLocaleString()
+    : "—";
+  const healthDisplay =
+    typeof metrics.healthFactor === "number" ? metrics.healthFactor.toFixed(2) : "—";
+  const borrowableDisplay = metrics.borrowable ? `${metrics.borrowable}` : "—";
+  const creditScoreDisplay =
+    metrics.creditScore !== undefined ? metrics.creditScore.toString() : "—";
+  const creditStatus =
+    metrics.creditValid === undefined ? "Unknown" : metrics.creditValid ? "Fresh" : "Stale";
+
   return (
     <main className="grid" style={{ gap: "32px" }}>
       <header className="card" style={{ textAlign: "left" }}>
@@ -340,6 +419,67 @@ export default function App() {
               Calls SpeciesLending.borrow after collateral is deposited / approved.
             </small>
             <LoanRequestForm disabled={!walletConnected} onSubmit={handleLoanRequest} />
+          </div>
+        </div>
+        <div className="grid split">
+          <div className="card">
+            <div className="section-title">
+              <h3>Credit score (SpeciesOracle)</h3>
+            </div>
+            <small className="help">
+              Pull the latest AI score for your herd to share with lenders or co-ops.
+            </small>
+            <label htmlFor="credit-species-id">Species ID</label>
+            <input
+              id="credit-species-id"
+              type="number"
+              min={1}
+              value={creditSpeciesId}
+              disabled={!walletConnected}
+              onChange={(e) => setCreditSpeciesId(Number(e.target.value))}
+            />
+            <button
+              type="button"
+              onClick={refreshMetrics}
+              disabled={!walletConnected || metricsLoading}
+            >
+              {metricsLoading ? "Refreshing…" : "Refresh metrics"}
+            </button>
+            {metricsError && (
+              <small className="help" style={{ color: "#dc2626" }}>
+                {metricsError}
+              </small>
+            )}
+            <div style={{ marginTop: 16 }}>
+              <p>
+                <strong>Score:</strong> {creditScoreDisplay}
+              </p>
+              <p>
+                <strong>Status:</strong> {creditStatus}
+              </p>
+              <p>
+                <strong>Last updated:</strong> {creditLastUpdated}
+              </p>
+            </div>
+          </div>
+          <div className="card">
+            <div className="section-title">
+              <h3>Borrower health snapshot</h3>
+            </div>
+            <small className="help">
+              This mirrors what cooperatives review before approving deliveries.
+            </small>
+            <p>
+              <strong>Health factor:</strong> {healthDisplay}
+            </p>
+            <p>
+              <strong>Borrowable balance:</strong>{" "}
+              {borrowableDisplay === "—" ? "—" : `${borrowableDisplay} stable`}
+            </p>
+            <small className="help">
+              Health ≥ 1.0 means you&apos;re safe. Refresh after each deposit or pledge
+              to keep your cooperative in sync.
+            </small>
           </div>
         </div>
       </section>

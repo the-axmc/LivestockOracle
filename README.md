@@ -18,51 +18,17 @@ GrantVoucherRegistry – future grant commitments as NFTs.
 
 GuaranteePool – where grant money actually eats losses.
 
+KYCRegistry: 0x77AE911F218450e176b81C7d83b3b91ECAf54ad6
+SpeciesToken: 0xB4A11cfaD3804951d2aB2B970471430649F1109E
+SpeciesOracle: 0x3d8C15295019Ec1d2E79192E49f4dc63A7eaE551
+AnimalPassportRegistry: 0x7eEC0daC55bB502Be7e79cEB2d4F2855a03670C0
+CooperativeAttestor: 0x7DBc57a96359c36554a67911B6d7f27874A4E933
+GrantVoucherRegistry: 0x259Ed3e0Bc4AfFF41FC0FA1061cF22E9F4CBD4c5
+SpeciesLending: 0x34311c3788d649D1139e0d870F6e0602462F20e6
+GuaranteePool: 0x3AC36079da9B18c553C03d1ec0C194DCeEe7528a
+Stable token: 0x7E426d026f604d1c47b50059752122d8ab1E2C28
+
 ---
-
-## TypeScript dashboard (frontend)
-
-The `frontend/` directory hosts a lightweight Vite + React dashboard that interacts with the on-chain
-registry + voucher stack. Features:
-
-- Wallet connect panel (EIP-1193 / MetaMask) that auto-switches to Rayls testnet with transaction status banner.
-- Guided layout split into four operator lanes: Livestock owners, Cooperatives, Dashboard (wallet + auth feeds + cow walkthrough), and Liquidity providers.
-- Admin onboarding flow that flips KYC + borrower/coop/bank flags inside `KYCRegistry`.
-- Animal passport minting form for registrars.
-- Cooperative attestation form that writes to `CooperativeAttestor`.
-- Grant voucher minter + GuaranteePool grant deposit helper for grantors.
-- A cow example runbook that sequentially creates the species, mints a passport, requests a loan, posts a credit score, and funds the disbursement.
-- Borrower health factor + credit score widgets that read directly from SpeciesLending and SpeciesOracle so cooperatives and banks can view risk telemetry instantly.
-- **Three dedicated auth logs** that categorize actions by actor type:
-  - Livestock owners (passport mints, borrower onboarding)
-  - Cooperatives (attestations, membership status updates)
-  - Banks / LPs (grant vouchers, guarantee deposits)
-
-### Running locally
-
-1. `cd frontend`
-2. Copy `.env.example` → `.env` and paste the addresses emitted by your deployment script:
-   ```
-   VITE_RPC_URL=https://devnet-rpc.rayls.com
-   VITE_CHAIN_ID=122867
-   VITE_CHAIN_NAME=Rayls Testnet
-   VITE_KYC_REGISTRY=0x...
-   VITE_ANIMAL_PASSPORT=0x...
-   VITE_COOP_ATTESTOR=0x...
-   VITE_GRANT_VOUCHER=0x...
-   VITE_GUARANTEE_POOL=0x...
-   VITE_SPECIES_LENDING=0x...
-   VITE_SPECIES_TOKEN=0x...
-   VITE_SPECIES_ORACLE=0x...
-   VITE_STABLE_TOKEN=0x...
-   ```
-3. Install deps and start Vite:
-   ```
-   npm install
-   npm run dev
-   ```
-4. Open the printed URL (defaults to http://localhost:5173). Connect your admin / coop / grantor wallet
-   and interact with the on-chain contracts. Each action immediately streams into the respective auth log.
 
 1. KYCRegistry
 
