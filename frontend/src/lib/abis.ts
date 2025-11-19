@@ -124,6 +124,13 @@ export const speciesLendingAbi = [
   },
   {
     type: "function",
+    name: "borrow",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: []
+  },
+  {
+    type: "function",
     name: "health",
     stateMutability: "view",
     inputs: [{ name: "user", type: "address" }],
@@ -137,6 +144,35 @@ export const guaranteePoolAbi = [
     name: "depositGrant",
     stateMutability: "nonpayable",
     inputs: [{ name: "amount", type: "uint256" }],
+    outputs: []
+  }
+] as const;
+
+export const speciesTokenAbi = [
+  {
+    type: "function",
+    name: "setSpeciesInfo",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "id", type: "uint256" },
+      { name: "name_", type: "string" },
+      { name: "unitDecimals", type: "uint8" },
+      { name: "mintPaused", type: "bool" }
+    ],
+    outputs: []
+  }
+] as const;
+
+export const speciesOracleAbi = [
+  {
+    type: "function",
+    name: "postPriceWithScore",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "id", type: "uint256" },
+      { name: "price", type: "uint256" },
+      { name: "score", type: "uint256" }
+    ],
     outputs: []
   }
 ] as const;

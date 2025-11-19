@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Address, Hex } from "viem";
 import { stringToHex } from "viem";
 import { useWallet } from "./hooks/useWallet";
@@ -9,7 +9,10 @@ import {
   animalPassportAbi,
   cooperativeAttestorAbi,
   grantVoucherAbi,
-  guaranteePoolAbi
+  guaranteePoolAbi,
+  speciesTokenAbi,
+  speciesLendingAbi,
+  speciesOracleAbi
 } from "./lib/abis";
 import { WalletCard } from "./components/WalletCard";
 import { AuthLog } from "./components/AuthLog";
@@ -19,6 +22,10 @@ import { PassportForm } from "./components/forms/PassportForm";
 import { GrantVoucherForm } from "./components/forms/GrantVoucherForm";
 import { CoopAttestationForm } from "./components/forms/CoopAttestationForm";
 import { GrantDepositForm } from "./components/forms/GrantDepositForm";
+import { SpeciesConfigForm } from "./components/forms/SpeciesConfigForm";
+import { LoanRequestForm } from "./components/forms/LoanRequestForm";
+import { CreditScoreForm } from "./components/forms/CreditScoreForm";
+import { CowExample } from "./components/CowExample";
 import type { ActorType } from "./types";
 
 const roleMatrix: Record<ActorType, [boolean, boolean, boolean, boolean, boolean]> = {
@@ -81,6 +88,30 @@ export default function App() {
     setStatus(`Onboarded ${target} (${txHash}, ${txHash2})`);
   };
 
+  const handleSpeciesConfig = async (payload: {
+    speciesId: number;
+    name: string;
+    unitDecimals: number;
+    mintPaused: boolean;
+  }) => {
+    const signer = await ensureWallet();
+    const speciesAddr = requireAddress(contractAddresses.speciesToken, "SpeciesToken");
+    const tx = await signer.writeContract({
+      address: speciesAddr,
+      abi: speciesTokenAbi,
+      functionName: "setSpeciesInfo",
+      args: [BigInt(payload.speciesId), payload.name, payload.unitDecimals, payload.mintPaused]
+    });
+    const txHash = await waitForTx(tx);
+    pushLog("livestock", {
+      actor: wallet.address || "",
+      action: "Species configured",
+      details: `${payload.name} (ID ${payload.speciesId})`,
+      txHash,
+      timestamp: Date.now()
+    });
+  };
+
   const handlePassport = async (payload: {
     owner: string;
     speciesId: number;
@@ -100,6 +131,25 @@ export default function App() {
       action: "Passport minted",
       details: `Species ${payload.speciesId}`,
       txHash: txHash,
+      timestamp: Date.now()
+    });
+  };
+
+  const handleLoanRequest = async ({ amount }: { amount: string }) => {
+    const signer = await ensureWallet();
+    const lendingAddr = requireAddress(contractAddresses.speciesLending, "SpeciesLending");
+    const tx = await signer.writeContract({
+      address: lendingAddr,
+      abi: speciesLendingAbi,
+      functionName: "borrow",
+      args: [BigInt(amount || "0")]
+    });
+    const txHash = await waitForTx(tx);
+    pushLog("livestock", {
+      actor: wallet.address || "",
+      action: "Loan requested",
+      details: `${amount} stable units`,
+      txHash,
       timestamp: Date.now()
     });
   };
@@ -169,6 +219,29 @@ export default function App() {
     });
   };
 
+  const handleCreditScore = async (payload: {
+    speciesId: number;
+    price: string;
+    score: number;
+  }) => {
+    const signer = await ensureWallet();
+    const oracleAddr = requireAddress(contractAddresses.speciesOracle, "SpeciesOracle");
+    const tx = await signer.writeContract({
+      address: oracleAddr,
+      abi: speciesOracleAbi,
+      functionName: "postPriceWithScore",
+      args: [BigInt(payload.speciesId), BigInt(payload.price || "0"), BigInt(payload.score)]
+    });
+    const txHash = await waitForTx(tx);
+    pushLog("cooperative", {
+      actor: wallet.address || "",
+      action: "Credit score posted",
+      details: `Species ${payload.speciesId} • score ${payload.score}`,
+      txHash,
+      timestamp: Date.now()
+    });
+  };
+
   const handleGrantDeposit = async ({ amount }: { amount: string }) => {
     const signer = await ensureWallet();
     const guaranteeAddr = requireAddress(contractAddresses.guaranteePool, "GuaranteePool");
@@ -190,90 +263,203 @@ export default function App() {
 
   const walletConnected = Boolean(wallet.address);
 
+  const cowScenario = useMemo(() => {
+    const metadataNote = "cow-001";
+    const payoutDate = new Date(Date.now() + 1000 * 60 * 60 * 24 * 30)
+      .toISOString()
+      .slice(0, 10);
+    return {
+      speciesId: 1,
+      speciesName: "Nguni Cow",
+      unitDecimals: 0,
+      metadataNote,
+      metadataHash: stringToHex(metadataNote, { size: 32 }) as Hex,
+      loanAmount: "100000000",
+      price: "150000000000",
+      score: 780,
+      grantAmount: "100000000",
+      grantRef: "cow-001-voucher",
+      payoutDate
+    };
+  }, []);
+
   return (
     <main className="grid" style={{ gap: "32px" }}>
       <header className="card" style={{ textAlign: "left" }}>
         <h1>Livestock Oracle Control Center</h1>
         <p>
-          Manage onboarding, cooperative attestations, grant vouchers, and grant-backed
-          deposits across the deployed contracts. Every interaction feeds into the
-          Livestock Oracle data room.
+          Every form below is mapped to the on-chain modules so you can walk a cow from
+          onboarding to an underwritten, credit-scored loan request.
         </p>
         <p>
           <small>
-            RPC: {contractAddresses.kycRegistry ? "configured" : "missing"} • Total Auth
+            RPC: {contractAddresses.kycRegistry ? "configured" : "missing"} • Total auth
             events tracked: {stats.total}
           </small>
         </p>
       </header>
 
-      <div className="grid split">
-        <WalletCard
-          address={wallet.address}
-          chainId={wallet.chainId}
-          connect={wallet.connect}
-          disconnect={wallet.disconnect}
-          connecting={wallet.connecting}
-        />
-        <div className="card">
-          <div className="section-title">
-            <h3>Live Status</h3>
+      <section className="grid" style={{ gap: "16px" }}>
+        <div className="section-title">
+          <span className="badge">1. Livestock owners</span>
+          <h2>Farmer onboarding & requests</h2>
+        </div>
+        <small className="help">
+          KYC their wallet, configure the species catalog, mint passports, and submit loan
+          asks using SpeciesLending.
+        </small>
+        <div className="grid split">
+          <div className="card">
+            <div className="section-title">
+              <h3>Onboard & assign roles</h3>
+            </div>
+            <OnboardForm disabled={!walletConnected} onSubmit={handleOnboard} />
           </div>
-          <p>{status || "No transactions sent yet."}</p>
-          {lastVoucher && (
+          <div className="card">
+            <div className="section-title">
+              <h3>Create / update species</h3>
+            </div>
             <small className="help">
-              Latest voucher synced: {new Date(lastVoucher).toLocaleTimeString()}
+              Writes to SpeciesToken.setSpeciesInfo so Cow, Goat, Pig… IDs stay in sync.
             </small>
-          )}
+            <SpeciesConfigForm disabled={!walletConnected} onSubmit={handleSpeciesConfig} />
+          </div>
         </div>
-      </div>
+        <div className="grid split">
+          <div className="card">
+            <div className="section-title">
+              <h3>Mint animal passport</h3>
+            </div>
+            <PassportForm disabled={!walletConnected} onSubmit={handlePassport} />
+          </div>
+          <div className="card">
+            <div className="section-title">
+              <h3>Request a loan</h3>
+            </div>
+            <small className="help">
+              Calls SpeciesLending.borrow after collateral is deposited / approved.
+            </small>
+            <LoanRequestForm disabled={!walletConnected} onSubmit={handleLoanRequest} />
+          </div>
+        </div>
+      </section>
 
-      <div className="grid split">
-        <div className="card">
-          <div className="section-title">
-            <h3>1. Onboard & Assign Roles</h3>
-          </div>
-          <small className="help">
-            Admin-only: set KYC flag and assign borrower / coop / bank roles via KYCRegistry.
-          </small>
-          <OnboardForm disabled={!walletConnected} onSubmit={handleOnboard} />
+      <section className="grid" style={{ gap: "16px" }}>
+        <div className="section-title">
+          <span className="badge">2. Cooperatives</span>
+          <h2>Field data & credit signals</h2>
         </div>
-        <div className="card">
-          <div className="section-title">
-            <h3>2. Mint Animal Passport</h3>
+        <small className="help">
+          Capture deliveries / membership plus AI credit scores piped through the oracle.
+        </small>
+        <div className="grid split">
+          <div className="card">
+            <div className="section-title">
+              <h3>Membership attestation</h3>
+            </div>
+            <CoopAttestationForm disabled={!walletConnected} onSubmit={handleAttestation} />
           </div>
-          <small className="help">
-            Requires REGISTRAR_ROLE. Data feeds the AI scoring layer.
-          </small>
-          <PassportForm disabled={!walletConnected} onSubmit={handlePassport} />
+          <div className="card">
+            <div className="section-title">
+              <h3>Publish credit score</h3>
+            </div>
+            <CreditScoreForm disabled={!walletConnected} onSubmit={handleCreditScore} />
+          </div>
         </div>
-      </div>
+      </section>
 
-      <div className="grid split">
-        <div className="card">
-          <div className="section-title">
-            <h3>3. Cooperative Attestation</h3>
-          </div>
-          <CoopAttestationForm
-            disabled={!walletConnected}
-            onSubmit={handleAttestation}
+      <section className="grid" style={{ gap: "16px" }}>
+        <div className="section-title">
+          <span className="badge">3. Dashboard</span>
+          <h2>Live control tower</h2>
+        </div>
+        <small className="help">
+          Wallet connectivity, status, guided cow example, and categorized auth feeds.
+        </small>
+        <div className="grid split">
+          <WalletCard
+            address={wallet.address}
+            chainId={wallet.chainId}
+            connect={wallet.connect}
+            disconnect={wallet.disconnect}
+            connecting={wallet.connecting}
           />
-        </div>
-        <div className="card">
-          <div className="section-title">
-            <h3>4. Grant Voucher + Guarantee Pool</h3>
+          <div className="card">
+            <div className="section-title">
+              <h3>Live status</h3>
+            </div>
+            <p>{status || "No transactions sent yet."}</p>
+            {lastVoucher && (
+              <small className="help">
+                Latest voucher synced: {new Date(lastVoucher).toLocaleTimeString()}
+              </small>
+            )}
           </div>
-          <GrantVoucherForm disabled={!walletConnected} onSubmit={handleVoucher} />
-          <hr style={{ margin: "24px 0" }} />
-          <GrantDepositForm disabled={!walletConnected} onSubmit={handleGrantDeposit} />
         </div>
-      </div>
+        <CowExample
+          disabled={!walletConnected}
+          owner={wallet.address}
+          scenario={cowScenario}
+          actions={{
+            createSpecies: () =>
+              handleSpeciesConfig({
+                speciesId: cowScenario.speciesId,
+                name: cowScenario.speciesName,
+                unitDecimals: cowScenario.unitDecimals,
+                mintPaused: false
+              }),
+            mintPassport: () =>
+              handlePassport({
+                owner: wallet.address || "",
+                speciesId: cowScenario.speciesId,
+                metadataHash: cowScenario.metadataHash
+              }),
+            requestLoan: () => handleLoanRequest({ amount: cowScenario.loanAmount }),
+            postCreditScore: () =>
+              handleCreditScore({
+                speciesId: cowScenario.speciesId,
+                price: cowScenario.price,
+                score: cowScenario.score
+              }),
+            fundLoan: () =>
+              handleVoucher({
+                beneficiary: wallet.address || "",
+                amount: cowScenario.grantAmount,
+                payoutDate: cowScenario.payoutDate,
+                grantRef: cowScenario.grantRef
+              })
+          }}
+        />
+        <div className="grid split">
+          <AuthLog title="Livestock owners" type="livestock" entries={logs.livestock} />
+          <AuthLog title="Cooperatives" type="cooperative" entries={logs.cooperative} />
+          <AuthLog title="Liquidity Providers" type="bank" entries={logs.bank} />
+        </div>
+      </section>
 
-      <div className="grid split">
-        <AuthLog title="Livestock Owners" type="livestock" entries={logs.livestock} />
-        <AuthLog title="Cooperatives" type="cooperative" entries={logs.cooperative} />
-        <AuthLog title="Banks & LPs" type="bank" entries={logs.bank} />
-      </div>
+      <section className="grid" style={{ gap: "16px" }}>
+        <div className="section-title">
+          <span className="badge">4. Liquidity providers</span>
+          <h2>Grant vouchers & guarantee pool</h2>
+        </div>
+        <small className="help">
+          Issue grant-backed loans (NFT vouchers) and top up the loss-absorbing pool.
+        </small>
+        <div className="grid split">
+          <div className="card">
+            <div className="section-title">
+              <h3>Mint grant voucher</h3>
+            </div>
+            <GrantVoucherForm disabled={!walletConnected} onSubmit={handleVoucher} />
+          </div>
+          <div className="card">
+            <div className="section-title">
+              <h3>Deposit to guarantee pool</h3>
+            </div>
+            <GrantDepositForm disabled={!walletConnected} onSubmit={handleGrantDeposit} />
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

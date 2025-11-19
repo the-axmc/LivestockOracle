@@ -25,11 +25,14 @@ GuaranteePool – where grant money actually eats losses.
 The `frontend/` directory hosts a lightweight Vite + React dashboard that interacts with the on-chain
 registry + voucher stack. Features:
 
-- Wallet connect panel (Metamask/EIP-1193) with transaction status banner.
+- Wallet connect panel (EIP-1193 / MetaMask) that auto-switches to Rayls testnet with transaction status banner.
+- Guided layout split into four operator lanes: Livestock owners, Cooperatives, Dashboard (wallet + auth feeds + cow walkthrough), and Liquidity providers.
 - Admin onboarding flow that flips KYC + borrower/coop/bank flags inside `KYCRegistry`.
 - Animal passport minting form for registrars.
 - Cooperative attestation form that writes to `CooperativeAttestor`.
 - Grant voucher minter + GuaranteePool grant deposit helper for grantors.
+- A cow example runbook that sequentially creates the species, mints a passport, requests a loan, posts a credit score, and funds the disbursement.
+- Borrower health factor + credit score widgets that read directly from SpeciesLending and SpeciesOracle so cooperatives and banks can view risk telemetry instantly.
 - **Three dedicated auth logs** that categorize actions by actor type:
   - Livestock owners (passport mints, borrower onboarding)
   - Cooperatives (attestations, membership status updates)
@@ -40,12 +43,18 @@ registry + voucher stack. Features:
 1. `cd frontend`
 2. Copy `.env.example` → `.env` and paste the addresses emitted by your deployment script:
    ```
-   VITE_RPC_URL=http://127.0.0.1:8545
+   VITE_RPC_URL=https://devnet-rpc.rayls.com
+   VITE_CHAIN_ID=122867
+   VITE_CHAIN_NAME=Rayls Testnet
    VITE_KYC_REGISTRY=0x...
    VITE_ANIMAL_PASSPORT=0x...
    VITE_COOP_ATTESTOR=0x...
    VITE_GRANT_VOUCHER=0x...
    VITE_GUARANTEE_POOL=0x...
+   VITE_SPECIES_LENDING=0x...
+   VITE_SPECIES_TOKEN=0x...
+   VITE_SPECIES_ORACLE=0x...
+   VITE_STABLE_TOKEN=0x...
    ```
 3. Install deps and start Vite:
    ```

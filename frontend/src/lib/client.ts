@@ -1,5 +1,6 @@
 import {
   Address,
+  EIP1193Provider,
   PublicClient,
   WalletClient,
   createPublicClient,
@@ -16,10 +17,10 @@ declare global {
   }
 }
 
-const chain = defineChain({
+export const chain = defineChain({
   id: chainConfig.id,
   name: chainConfig.name,
-  network: "livestock",
+  network: "rayls-testnet",
   nativeCurrency: {
     name: "Ether",
     symbol: "ETH",
@@ -36,13 +37,17 @@ export const publicClient: PublicClient = createPublicClient({
   transport: http(chainConfig.rpcUrl)
 });
 
-export async function getWalletClient(account?: Address): Promise<WalletClient> {
-  if (!window.ethereum) {
+export async function getWalletClient(
+  account?: Address,
+  provider?: EIP1193Provider
+): Promise<WalletClient> {
+  const transportProvider = provider || window.ethereum;
+  if (!transportProvider) {
     throw new Error("No injected wallet detected");
   }
   return createWalletClient({
     account,
     chain,
-    transport: custom(window.ethereum)
+    transport: custom(transportProvider)
   });
 }
