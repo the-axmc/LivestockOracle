@@ -1,5 +1,10 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import {IKYCRegistry} from "./KYCRegistry.sol";
+import "./SpeciesToken.sol";
 
 contract AnimalPassportRegistry is ERC721, AccessControl {
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
@@ -60,5 +65,11 @@ contract AnimalPassportRegistry is ERC721, AccessControl {
         bool locked
     ) external onlyRole(REGISTRAR_ROLE) {
         animals[id].isCollateralised = locked;
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(ERC721, AccessControl) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

@@ -34,9 +34,11 @@ Who is KYCed at all.
 Who can borrow, act as a bank, cooperative, oracle bot, or grantor.
 
 Core data
-bash ```
+
+```bash
 
 ```
+
 Key functions
 
 Admin:
@@ -94,12 +96,11 @@ Fungible representation of standardized animal units (e.g. “1 cow unit”, “
 
 Core data
 
-
 Key functions
 
 Admin / species management:
 
-_registerSpecies(id, name, unitDecimals, mintPaused) – internal initializer.
+\_registerSpecies(id, name, unitDecimals, mintPaused) – internal initializer.
 
 setSpeciesInfo(id, name, unitDecimals, mintPaused) – create or update species by fixed id.
 
@@ -304,7 +305,7 @@ borrowable(user) – how much more they can borrow in stable.
 
 health(user) – health factor (1e18 = 1.0).
 
-_values(user) – internal; sums collateral values over species 1–4 in USD (6 decimals) based on oracle prices and per-species risk params.
+\_values(user) – internal; sums collateral values over species 1–4 in USD (6 decimals) based on oracle prices and per-species risk params.
 
 How it fits the platform
 
@@ -567,7 +568,7 @@ SpeciesToken,
 
 SpeciesOracle,
 
-owner_ (admin).
+owner\_ (admin).
 
 Then set risk params for each species using setRisk.
 
@@ -641,7 +642,7 @@ Loan origination
 
 Farmer calls borrow(amount):
 
-Contract computes _borrowable(farmer) using:
+Contract computes \_borrowable(farmer) using:
 
 col[farmer][id],
 
@@ -692,4 +693,7 @@ This voucher:
 Signals future cashflow to the AI & banks.
 
 Can be linked to loans in a future iteration (e.g., part of the grant auto-repays the loan or refills GuaranteePool).
+
+```
+
 ```
